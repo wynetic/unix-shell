@@ -27,13 +27,37 @@ void fsh_help(void) {
     printf("help: displays this menu\n\n");
     printf("cd: built-in change dir function\n\n");
     printf("exit: exit shell\n\n");
+    printf("setenv VAR_NAME /dir/path/: add new env to PATH\n\n");
 }
 
 void fsh_echo(char **cmd) {
-    for (int i = 1; i < strlen(cmd[1]) - 1; i++) {
-        printf("%c", cmd[1][i]);
+    if (cmd[1][0] == '"') {
+        for (int i = 1; i < strlen(cmd[1]) - 1; i++) {
+            printf("%c", cmd[1][i]);
+        }
+        puts("");
+        return;
     }
-    puts("");
+    if (cmd[1][0] == '$') {
+        char *env_var[] = {"PATH", "USER", "SHELL", "HOME", "PWD", "_", "LANG", "TERM"};
+        for (int i = 0; i < strlen(cmd[1]); i++) {
+            cmd[1][i] = cmd[1][i + 1];
+        }
+        for (int i = 0; i < 8; i++) {
+            if (strcmp(cmd[1], env_var[i]) == 0) {
+                printf("%s\n", getenv(env_var[i]));
+                return;
+            }
+        }
+    }
+    exit(EXIT_FAILURE);
+}
+
+void fsh_setenv(char **cmd) {
+    if (cmd[1] == NULL || cmd[2] == NULL) {
+        return;
+    }
+    setenv(cmd[1], cmd[2], 0);
     return;
 }
 
@@ -64,8 +88,13 @@ void fsh_execute(char **cmd) {
         fsh_cd(cmd);
         return;
     }
-    if (strcmp(cmd[0], "echo") == 0 && cmd[1][0] == '"') {
+    if ((strcmp(cmd[0], "echo") == 0 && cmd[1][0] == '"') ||
+        (strcmp(cmd[0], "echo") == 0 && cmd[1][0] == '$')) {
         fsh_echo(cmd);
+        return;
+    }
+    if (strcmp (cmd[0], "setenv") == 0) {
+        fsh_setenv(cmd);
         return;
     }
     pid_t pid = fork(); 
