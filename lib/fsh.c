@@ -16,9 +16,8 @@
 #define END_BOLD "\x1B[0m"
 
 
-
 void fsh_exit(void) {
-    raise(SIGTERM);
+    exit(EXIT_SUCCESS);
 }
 
 void fsh_help(void) {
@@ -62,7 +61,7 @@ void fsh_setenv(char **cmd) {
 }
 
 void fsh_cd(char **dir) {
-    char *home = "/home";   
+    char *home = getenv("HOME");   
     if(dir[1] == NULL) {
         if (chdir(home) != 0)
             perror("cd");
@@ -296,7 +295,6 @@ void handler(int sig) {
 }
 
 void fsh_background(char **cmd) {
-    // printf("This's not avaible now\n");
     pid_t pid = fork();
     if (pid == -1) {
         perror("fork");
@@ -307,6 +305,7 @@ void fsh_background(char **cmd) {
         close(STDOUT_FILENO);
         close(STDERR_FILENO);
         signal(SIGCHLD, handler);
+        signal(SIGHUP, SIG_IGN);
         execvp(cmd[0], cmd);
         perror("execvp");
         exit(EXIT_FAILURE);
@@ -394,4 +393,5 @@ void fsh(void) {
             }
         }
     }
+    putchar('\n');
 }
