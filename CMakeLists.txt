@@ -8,7 +8,3 @@ add_executable(main ${MAIN_PROJECT_SRC_LIST})
 
 add_subdirectory(lib)
 target_link_libraries(main lib)
-
-set(CPACK_PROJECT_NAME ${PROJECT_NAME})
-set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
-include(CPack)
