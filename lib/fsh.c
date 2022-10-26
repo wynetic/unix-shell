@@ -420,8 +420,18 @@ void fsh_processCIO(char **cmd, char **sep) {
 }
 
 void fsh(void) {
+    // get hostname
     char hostname[HOST_NAME_MAX];
     gethostname(hostname, HOST_NAME_MAX);
+    // change default dir to /home/user
+    char dir[PATH_MAX];
+    strcat(dir, "/home/");
+    strcat(dir, getenv("USER"));
+    if (chdir(dir) == -1) {
+        perror("cd");
+        exit(EXIT_FAILURE);
+    }
+    
     while (!feof(stdin)) {
         char cwd[PATH_MAX];
         getcwd(cwd, PATH_MAX);
