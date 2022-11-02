@@ -10,6 +10,17 @@
 #define ARG_SIZE 256
 
 
+void freeDoublePointer(char **ptr) {
+    int i = 0;
+    while (ptr[i] != NULL) {
+        free(ptr[i]);
+        i++;
+    }
+    free(ptr);
+    return;
+}
+
+
 void rmExtraSpaces(char *line) {
     int len = strlen(line);
     int i, j, quote = 0;
@@ -22,6 +33,11 @@ void rmExtraSpaces(char *line) {
             quote = 0;
             continue;
         }
+        // ignore symbols after '#' (comments)
+        if (line[i] == '#' && line[i - 1] == ' ') {
+            line[i] = '\0';
+            break;
+        }
         if (line[i] == ' ' && line[i + 1] == ' ') {
             for (j = i; j < (len - 1); j++) {
                 line[j] = line[j + 1];
@@ -30,70 +46,27 @@ void rmExtraSpaces(char *line) {
             len--;
             i--;
         }
-    }
-}
-
-void rmSpace(char *line) {
-    int len = strlen(line);
-    int i, j, quote = 0;
-    for (i = 0; i < len; i++) {
-        if (line[i] == '"')
-            quote++;
-        if (quote == 1)
-            continue;
-        if (quote == 2) {
-            quote = 0;
-            continue;
-        }
         if (line[i] == ';' && line[i + 1] == ' ') {
             for (j = i + 1; j < (len - 1); j++)
                 line[j] = line[j + 1];
             line[j] = '\0';
+            i--;
         }
         if (line[i] == ';' && line[i - 1] == ' ') {
             for (j = i - 1; j < (len - 1); j++)
                 line[j] = line[j + 1];
             line[j] = '\0';
-        }
-    }
-}
-
-void rmComments(char *str) {
-    int len = strlen(str);
-    int quote = 0;
-    for (int i = 0; i < len; i++) {
-        if (str[i] == '"')
-            quote++;
-        if (quote == 1)
-            continue;
-        if (quote == 2) {
-            quote = 0;
-            continue;
-        }
-        if (str[i] == '#' && str[i - 1] == ' ') {
-            str[i] = '\0';
-            for (int j = i + 1; j < len; j++) {
-                str[j] = ' ';
-            }
+            i--;
         }
     }
 }
 
 int cmdHandler(char *str) {
     int len = strlen(str);
-    char delim[] = {'&', '|'};
     int quote = 0;
-    for (int i = 0; i < 2; i++) {
-        for (int j = 0; j < len; j++) {
-            if (str[j] == delim[i] && str[j + 1] == delim[i] && str[j + 2] == delim[i]) {
-                printf("syntax error near unexpected token `%c'\n", delim[i]);
-                return -1; // syntax error
-            }
-            if (str[j] == delim[i] && str[j + 2] == delim[i]) {
-                printf("syntax error near unexpected token `%c'\n", delim[i]);
-                return -1; // syntax error
-            }
-        }
+
+    if (syntaxChecker(str) == -1) {
+        return -1;
     }
     for (int i = 0; i < len; i++) {
         if (str[i] == '"')
@@ -259,6 +232,7 @@ void write_history(char *buf) {
     write(fd, buf, strlen(buf));
     write(fd, "\n", sizeof(char));
     close(fd);
+    free(dir);
 }
 
 char *readLine(void) {
@@ -286,28 +260,13 @@ char *readLine(void) {
         if (quote == 2) {
             quote = 0;
         }
-        if ((c == EOF || c == '\n') &&
-            ((buffer[pos - 1] == '|' && buffer[pos - 2] == '|') ||
-             (buffer[pos - 1] == '&' && buffer[pos - 2] == '&') ||
-             (buffer[pos - 1] == '>' && buffer[pos - 2] == '>'))) {
-            printf("fsh: syntax error near unexpected token `%c%c'\n", buffer[pos - 2], buffer[pos - 1]);
-            return NULL;
-        }
-        if ((c == EOF || c == '\n') &&
-            (buffer[pos - 1] == '|' ||
-            buffer[pos - 1] == '>' ||
-            buffer[pos - 1] == '<')) {
-            printf("fsh: syntax error near unexpected token `%c'\n", buffer[pos - 1]);
-            return NULL;
-        }
-
         if (c == EOF || c == '\n') {
             buffer[pos] = '\0';
             break;
         }
         if (pos > bufsize) {
             bufsize *= 2;
-            buffer = realloc(buffer, bufsize);
+            buffer = (char*) realloc(buffer, bufsize);
             if (buffer == NULL) {
                 perror("realloc");
                 exit(EXIT_FAILURE);
@@ -318,6 +277,39 @@ char *readLine(void) {
     }
     write_history(buffer);
     return buffer;
+}
+
+int syntaxChecker(char *s) {
+    int len = strlen(s);
+    for (int i = 0; i < len; i++) {
+        if ((s[i] == '|' && s[i + 1] == '|' && ((s[i + 2] == ' ' && s[i + 3] == '\0') || s[i + 2] == '\0')) ||
+            (s[i] == '&' && s[i + 1] == '&' && ((s[i + 2] == ' ' && s[i + 3] == '\0') || s[i + 2] == '\0')) ||
+            (s[i] == '>' && s[i + 1] == '>' && ((s[i + 2] == ' ' && s[i + 3] == '\0') || s[i + 2] == '\0'))) {
+            printf("fsh: syntax error near unexpected token `%c%c'\n", s[i], s[i + 1]);
+            return -1;
+        }
+        if ((s[i] == '|' && ((s[i + 1] == ' ' && s[i + 2] == '\0') || s[i + 1] == '\0')) ||
+            (s[i] == '>' && ((s[i + 1] == ' ' && s[i + 2] == '\0') || s[i + 1] == '\0')) ||
+            (s[i] == '<' && ((s[i + 1] == ' ' && s[i + 2] == '\0') || s[i + 1] == '\0'))) {
+            printf("fsh: syntax error near unexpected token `%c'\n", s[i]);
+            return -1;
+        }
+    }
+
+    char delim[] = {'&', '|', '>'};
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < len; j++) {
+            if (s[j] == delim[i] && s[j + 1] == delim[i] && s[j + 2] == delim[i]) {
+                printf("syntax error near unexpected token `%c'\n", delim[i]);
+                return -1;
+            }
+            if (s[j] == delim[i] && s[j + 2] == delim[i]) {
+                printf("syntax error near unexpected token `%c'\n", delim[i]);
+                return -1;
+            }
+        }
+    }
+    return 0;
 }
 
 int countStrElements(char *cmd) {
@@ -378,9 +370,9 @@ int countPipelineCmds(char *line) {
 }
 
 char *splitLine(char *line, int start, char delim) {
-    char *cmd = (char*) malloc(256 * sizeof(char));
+    char *cmd = (char*) calloc(256, sizeof(char));
     if (line == NULL) {
-        perror("malloc");
+        perror("calloc");
         exit(EXIT_FAILURE);
     }
 
@@ -422,8 +414,10 @@ char *splitLine(char *line, int start, char delim) {
 
         if (line[i] == delim)
             break;
-        if (line[i] == EOF || line[i] == '\0')
+        if (line[i] == EOF || line[i] == '\0') {
+            cmd[j] = '\0';
             break;
+        }
         cmd[j] = line[i];
         j++;
     }
@@ -433,9 +427,9 @@ char *splitLine(char *line, int start, char delim) {
 char **getSep(char **cmd) {
     char *sep[] = {"&&", "||", "|", "&", "<", ">", ">>"};
     int N = 0;
-    char **seps = (char**) malloc(N * sizeof(char*));
+    char **seps = (char**) calloc(N, sizeof(char*));
     if (seps == NULL) {
-        perror("malloc");
+        perror("calloc");
         exit(EXIT_FAILURE);
     }
     for (int i = 0; i < 7; i++) {
@@ -443,7 +437,7 @@ char **getSep(char **cmd) {
         while (cmd[j] != NULL) {
             if (strcmp(cmd[j], sep[i]) == 0) {
                 N++;
-                seps = realloc(seps, N*sizeof(char*));
+                seps = (char**) realloc(seps, N*sizeof(char*));
                 if (seps == NULL) {
                     perror("realloc");
                     exit(EXIT_FAILURE);
@@ -488,16 +482,16 @@ char ***splitCommands(char **cmd, int cmd_num) {
     char **sep = getSep(cmd);
     int *args = countArgs(cmd, cmd_num);
 
-    char ***split = (char***) malloc(cmd_num * sizeof(char**));
+    char ***split = (char***) calloc(cmd_num, sizeof(char**));
     if (split == NULL) {
-        perror("malloc");
+        perror("calloc");
         exit(EXIT_FAILURE);
     }
     for (int i = 0; i < cmd_num; i++) {
         for (int j = 0; j < args[i]; j++) {
-            split[i] = (char**) malloc(args[i] * sizeof(char*));
+            split[i] = (char**) calloc(args[i], sizeof(char*));
             if (split[i] == NULL) {
-                perror("malloc");
+                perror("calloc");
                 exit(EXIT_FAILURE);
             }
         }
@@ -527,16 +521,16 @@ char **parseCmd(char *cmd) {
     char *sep[] = {"&&", "||", "|", "&", ">", "<", ">>"};
     int n = countStrElements(cmd);    
     int arg_size = ARG_SIZE;
-    char **pcmd = (char**) malloc((n + 1)*sizeof(char*));
+    char **pcmd = (char**) calloc((n + 1), sizeof(char*));
     if (pcmd == NULL) {
-        perror("malloc");
+        perror("calloc");
         exit(EXIT_FAILURE);
     }
     int start = 0;
     for (int i = 0; i < n; i++) {
-        pcmd[i] = (char*) malloc(arg_size*sizeof(char));
+        pcmd[i] = (char*) calloc(arg_size, sizeof(char));
         if (pcmd[i] == NULL) {
-            perror("malloc");
+            perror("calloc");
             exit(EXIT_FAILURE);
         }
         char *s = splitLine(cmd, start, ' ');
@@ -544,6 +538,7 @@ char **parseCmd(char *cmd) {
         for (int j = 0; j < strlen(s); j++) {
             pcmd[i][j] = s[j];
         }
+        free(s);
     }
     pcmd[n] = NULL;
     return pcmd;
@@ -553,9 +548,9 @@ char **parseCombinedIO(char **cmd) {
     int sep_num = countSeparators(cmd);
     char **sep = getSep(cmd);
     int n = sep_num + 2;
-    char **io = (char**) malloc(n * sizeof(char*));
+    char **io = (char**) calloc(n, sizeof(char*));
     if (io == NULL) {
-        perror("malloc");
+        perror("calloc");
         exit(EXIT_FAILURE);
     }
     int i = 0, k = 0;

@@ -368,6 +368,9 @@ void fsh_background(char **cmd) {
         close(STDERR_FILENO);
         signal(SIGCHLD, handler);
         signal(SIGHUP, SIG_IGN);
+        signal(SIGHUP, SIG_IGN);
+        signal(SIGTTIN, SIG_IGN);
+        signal(SIGTTOU, SIG_IGN);
         execvp(cmd[0], cmd);
         perror("execvp");
         exit(EXIT_FAILURE);
@@ -449,9 +452,7 @@ void fsh(void) {
         if (strcmp(line, "") == 0) {
             continue;
         }
-        rmComments(line);
         rmExtraSpaces(line);
-        rmSpace(line);
         
         // split, process and execute commands
         int cmd_num = countCommands(line);
@@ -465,6 +466,8 @@ void fsh(void) {
             if (type == 0) {
                 char **pcmd = parseCmd(cmd);
                 fsh_execute(pcmd);
+                free(cmd);
+                freeDoublePointer(pcmd);
                 continue;
             }
             if (type == 1) {
@@ -474,12 +477,16 @@ void fsh(void) {
                 char **sep = getSep(pcmd);
                 if (checkSeparators(sep, sep_num) == -1) {
                     free(sep);
+                    free(cmd);
+                    freeDoublePointer(pcmd);
                     continue;
                 }
                 if (sep[0] != NULL) {
                     char ***command = splitCommands(pcmd, n); 
                     fsh_process(command, n, sep[0]);
                     free(sep);
+                    free(cmd);
+                    freeDoublePointer(pcmd);
                     continue;
                 }
             } else if (type == 2) {
@@ -491,15 +498,21 @@ void fsh(void) {
                         char ***command = splitCommands(pcmd, n + 1); 
                         fsh_processIO(command, sep[0]);
                         free(sep);
+                        free(cmd);
+                        freeDoublePointer(pcmd);
                         continue;
                     }
                 } else if (n == 2) {
                     char **io = parseCombinedIO(pcmd);
                     fsh_processCIO(io, sep);
                     free(sep);
+                    free(cmd);
+                    freeDoublePointer(pcmd);
                     continue;
                 } else {
                     printf("fsh: too many arguments\n");
+                    free(cmd);
+                    freeDoublePointer(pcmd);
                     continue;
                 }
             } else if (type == 3) {
@@ -509,17 +522,23 @@ void fsh(void) {
                 char **sep = getSep(pcmd);
                 if (checkSeparators(sep, sep_num) == -1) {
                     free(sep);
+                    free(cmd);
+                    freeDoublePointer(pcmd);
                     continue;
                 }
                 if (sep[0] != NULL) {
                     char ***command = splitCommands(pcmd, n);
                     fsh_pipeline(command, n);
                     free(sep);
+                    free(cmd);
+                    freeDoublePointer(pcmd);
                     continue;
                 }
             } else if (type == 4) {
                 char **pcmd = parseCmd(cmd);
                 fsh_background(pcmd);
+                free(cmd);
+                freeDoublePointer(pcmd);
                 continue;
             }
         }
